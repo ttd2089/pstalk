@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
 )
 
-var newline string
+var br string
 
 func main() {
 
@@ -25,19 +26,28 @@ func main() {
 		os.Exit(1)
 	}
 
-	if depth == 0 {
+	if depth <= 0 {
 		os.Exit(0)
 	}
 
-	fmt.Printf("planted %d%s", os.Getpid(), newline)
+	pid := os.Getpid()
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs)
+	go func() {
+		for {
+			fmt.Printf("[%d]: info: received signal: %v%s", pid, <-sigs, br)
+		}
+	}()
+
+	fmt.Printf("[%d]: info: planted%s", pid, br)
 
 	if depth > 1 {
 		proc := exec.Command(os.Args[0], fmt.Sprintf("%d", depth-1))
 		proc.Stderr = os.Stderr
 		proc.Stdout = os.Stdout
 		if err := proc.Start(); err != nil {
-			os.Stderr.WriteString("error: failed to start child process")
-			os.Exit(1)
+			fmt.Printf("[%d]: error: failed to start child process: %s%s", pid, err, br)
 		}
 	}
 
@@ -47,7 +57,7 @@ func main() {
 }
 
 func init() {
-	newline = map[bool]string{
+	br = map[bool]string{
 		true:  "\r\n",
 		false: "\n",
 	}[runtime.GOOS == "windows"]
@@ -63,5 +73,5 @@ func usage() string {
 		"  depth:    the depth of the process tree to create",
 		"",
 	}
-	return strings.Join(msg, newline)
+	return strings.Join(msg, br)
 }
